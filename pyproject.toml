@@ -1,0 +1,40 @@
+[project]
+name = "monarch-mcp-server"
+version = "0.1.0"
+description = "A Model Context Protocol server for read-only access to Monarch Money financial data"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=1.9.2",
+    "monarchmoney>=0.1.15",
+    "python-dotenv>=1.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["monarch_mcp_server"]
+omit = [
+    "tests/*",
+    "debug_server.py",
+    "test_api.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
