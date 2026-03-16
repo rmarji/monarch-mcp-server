@@ -4,9 +4,11 @@ version = "0.1.0"
 description = "A Model Context Protocol server for read-only access to Monarch Money financial data"
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi>=0.115.0",
     "mcp>=1.9.2",
-    "monarchmoney>=0.1.15",
+    "monarchmoneycommunity>=1.3.0",
     "python-dotenv>=1.1.0",
+    "uvicorn>=0.34.0",
 ]
 
 [project.optional-dependencies]

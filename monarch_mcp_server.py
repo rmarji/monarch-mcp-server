@@ -231,44 +231,36 @@ class MonarchMCPServer:
                 )]
 
     async def _ensure_logged_in(self) -> bool:
-        """Ensure we're logged into Monarch Money - EXACTLY like debug script."""
+        """Ensure we're logged into Monarch Money."""
         if self.mm is None:
-            self.mm = MonarchMoney()  # Use default constructor like debug script
-            
-            # Check for session file (like debug script)
+            self.mm = MonarchMoney()
+
+            # Check for session file (load_session is synchronous in community fork)
             session_file = ".mm/mm_session.pickle"
             if os.path.exists(session_file):
-                print(f"💾 Session file exists: {session_file}")
                 try:
-                    await self.mm.load_session(session_file)
-                    print("✓ Session loaded successfully")
+                    self.mm.load_session(session_file)
+                    print("Session loaded successfully")
                     return True
                 except Exception as e:
-                    print(f"❌ Session load failed: {e}")
-                    # Continue to fresh login below
-            else:
-                print("ℹ No session file found, attempting fresh login...")
-            
-            # Fresh login (like debug script)
+                    print(f"Session load failed: {e}")
+
             email = os.getenv("MONARCH_EMAIL")
             password = os.getenv("MONARCH_PASSWORD")
             mfa_secret = os.getenv("MONARCH_MFA_SECRET")
-            
+
             if not email or not password:
-                print("Error: MONARCH_EMAIL and MONARCH_PASSWORD environment variables must be set")
+                print("Error: MONARCH_EMAIL and MONARCH_PASSWORD must be set")
                 return False
-                
+
             try:
-                await self.mm.login(
-                    email=email,
-                    password=password,
-                    save_session=True,
-                    mfa_secret_key=mfa_secret
-                )
-                print("✓ Fresh login successful")
+                # Use _login_user directly to bypass library's saved-session check
+                await self.mm._login_user(email, password, mfa_secret)
+                self.mm.save_session(session_file)
+                print("Fresh login successful")
                 return True
             except RequireMFAException:
-                print("Error: MFA required but no secret key provided. Set MONARCH_MFA_SECRET environment variable.")
+                print("Error: MFA required. Set MONARCH_MFA_SECRET environment variable.")
                 return False
             except Exception as e:
                 print(f"Login failed: {str(e)}")
