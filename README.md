@@ -1,192 +1,195 @@
-# Monarch Money MCP Server
+# Monarch Money MCP Server + HTTP Proxy
 
-A Model Context Protocol (MCP) server that provides read-only access to Monarch Money financial data. This allows AI assistants like Claude Desktop to analyze your financial information, transactions, budgets, and cashflow data.
+Read-only access to [Monarch Money](https://www.monarchmoney.com/) financial data via two interfaces:
 
-Note: I've created this for personal fun and is not affiated with Monarch Money. I mostly created it for learning about my spending, using it for projections. Since I don't have any need to mutate any data it's currently READONLY.
+- **MCP Server** — stdio-based, for local use with Claude Desktop / Claude Code
+- **HTTP Proxy** — FastAPI REST API, for remote access over Tailscale or any network
 
-Shout out to 
+> **Note:** This is a personal project, not affiliated with Monarch Money. Built for learning about spending patterns and projections. All access is read-only.
+
+## Important: Upstream Library Fix
+
+The original `monarchmoney` Python package (by hammem) is abandoned and broken — Monarch rebranded their API from `api.monarchmoney.com` to `api.monarch.com`, causing HTTP 525 errors. This project uses [`monarchmoneycommunity`](https://github.com/bradleyseanf/monarchmoneycommunity), the maintained community fork.
 
 ## Features
 
-- **Read-only access** to Monarch Money accounts
+- **Read-only access** to all Monarch Money accounts
 - **Transaction analysis** with date filtering and search
 - **Budget tracking** and cashflow analysis
 - **Account details** including investment holdings
-- **Secure authentication** with MFA support
+- **Secure authentication** with MFA/TOTP support
 - **Session persistence** to minimize re-authentication
+- **HTTP proxy** for remote access from any device on your network
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.13+
-- [uv](https://docs.astral.sh/uv/) package manager (recommended)
+- [uv](https://docs.astral.sh/uv/) package manager
 - A Monarch Money account
 
 ### Setup
 
 1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/rmarji/monarch-mcp-server.git
+   cd monarch-mcp-server
+   ```
 
 2. **Install dependencies:**
    ```bash
-   uv add mcp monarchmoney python-dotenv
+   uv sync
    ```
 
-3. **Configure environment variables:**
+3. **Configure credentials:**
    ```bash
    cp .env.example .env
    ```
-   
-   Edit `.env` with your Monarch Money credentials:
+
+   Edit `.env`:
    ```
    MONARCH_EMAIL=your-email@example.com
    MONARCH_PASSWORD=your-monarch-password
-   MONARCH_MFA_SECRET=your-mfa-secret-key  # Optional but recommended
+   MONARCH_MFA_SECRET=your-totp-secret-key
    ```
 
-4. **Test the connection:**
-   ```bash
-   python test_api.py
-   ```
+   The `MONARCH_MFA_SECRET` is the base32 TOTP secret from your authenticator app setup. This is required if your account has 2FA enabled (Monarch may require it by default).
 
 ## Usage
 
-### Running the Server
+### HTTP Proxy (Remote Access)
+
+Start the FastAPI proxy:
+```bash
+uv run python monarch_http_proxy.py
+```
+
+This binds to `0.0.0.0:8765` and is accessible from any device on your network (e.g., over Tailscale).
+
+#### Endpoints
+
+| Method | Path | Query Params | Description |
+|--------|------|-------------|-------------|
+| GET | `/health` | — | Status and auth check |
+| GET | `/accounts` | — | All linked accounts |
+| GET | `/accounts/{id}` | — | Account details (includes holdings for investment accounts) |
+| GET | `/transactions` | `start_date`, `end_date`, `account_id`, `limit` | Filtered transactions |
+| GET | `/transactions/search` | `q` (required), `start_date`, `end_date` | Search by description/merchant |
+| GET | `/cashflow` | `start_date`, `end_date` | Cashflow summary and details |
+| GET | `/categories` | — | Transaction categories |
+
+#### Examples
+
+```bash
+curl http://localhost:8765/health
+curl http://localhost:8765/accounts
+curl http://localhost:8765/transactions?limit=5
+curl http://localhost:8765/transactions?start_date=2026-01-01&end_date=2026-01-31
+curl "http://localhost:8765/transactions/search?q=grocery"
+curl http://localhost:8765/cashflow?start_date=2026-01-01&end_date=2026-03-01
+```
+
+The port can be changed via `MONARCH_PROXY_PORT` in `.env` (default: 8765).
+
+### MCP Server (Claude Desktop / Claude Code)
 
 Start the MCP server:
 ```bash
-python run_server.py
+uv run python run_server.py
 ```
 
-### Claude Desktop Integration
+#### Claude Desktop Integration
 
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "monarch-money": {
-      "command": "python",
-      "args": ["/path/to/monarch-mcp-server/run_server.py"],
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/monarch-mcp-server", "python", "run_server.py"],
       "env": {
         "MONARCH_EMAIL": "your-email@example.com",
         "MONARCH_PASSWORD": "your-password",
-        "MONARCH_MFA_SECRET": "your-mfa-secret"
+        "MONARCH_MFA_SECRET": "your-totp-secret"
       }
     }
   }
 }
 ```
 
-## Available Resources
+#### MCP Resources
 
-- `monarch://accounts` - All linked accounts
-- `monarch://transactions/recent` - Last 100 transactions  
-- `monarch://budgets` - Budget information with actual vs target
-- `monarch://cashflow/summary` - Income, expenses, and savings summary
+- `monarch://accounts` — All linked accounts
+- `monarch://transactions/recent` — Last 100 transactions
+- `monarch://budgets` — Budget information with actual vs target
+- `monarch://cashflow/summary` — Income, expenses, and savings summary
 
-## Available Tools
+#### MCP Tools
 
-- **get_transactions** - Get transactions with date range filtering
-- **get_account_details** - Detailed account information including holdings
-- **get_cashflow_analysis** - Cashflow analysis by category and time period
-- **search_transactions** - Search transactions by description or merchant
-- **get_categories** - All transaction categories
-- **get_institutions** - Linked financial institutions
+- **get_transactions** — Transactions with date range filtering
+- **get_account_details** — Detailed account info including holdings
+- **get_cashflow_analysis** — Cashflow analysis by category and time period
+- **search_transactions** — Search by description or merchant
+- **get_categories** — All transaction categories
+- **get_institutions** — Linked financial institutions
 
-## Example Prompts
-
-Once configured with Claude Desktop, you can ask:
-
-- "Show me my recent transactions from last month"
-- "What's my current budget status?"
-- "Analyze my spending patterns by category"
-- "How much did I spend on groceries this year?"
-- "What are my investment account balances?"
-
-## Security
-
-- **No write operations** - Server is read-only for safety
-- **Local credentials** - Your login details stay on your machine
-- **Session caching** - Reduces authentication frequency
-- **MFA support** - Two-factor authentication recommended
-
-## Troubleshooting
-
-### Authentication Issues
-
-1. **Run the debug script:**
-   ```bash
-   python debug_server.py
-   ```
-
-2. **Check environment variables:**
-   ```bash
-   python -c "import os; print('Email:', bool(os.getenv('MONARCH_EMAIL'))); print('Password:', bool(os.getenv('MONARCH_PASSWORD')))"
-   ```
-
-3. **Clear session cache:**
-   ```bash
-   rm -rf .mm/
-   ```
-
-### Common Issues
-
-- **MFA required**: Set `MONARCH_MFA_SECRET` environment variable
-- **Session expired**: Delete `.mm/` directory to force fresh login
-- **Import errors**: Ensure all dependencies installed with `uv add`
-
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 monarch-mcp-server/
-├── monarch_mcp_server.py     # Main MCP server implementation
-├── run_server.py             # Server launcher script
-├── debug_server.py           # Authentication debugging
+├── monarch_http_proxy.py    # FastAPI HTTP proxy for remote access
+├── monarch_mcp_server.py    # MCP server implementation
+├── run_server.py            # MCP server launcher
+├── debug_server.py          # Authentication debugging
 ├── test_api.py              # API connection testing
-├── tests/                   # Unit tests
-│   ├── __init__.py
+├── tests/
 │   └── test_monarch_mcp_server.py
-├── pyproject.toml           # Project dependencies
-├── .github/workflows/       # CI/CD workflows
-└── .env.example             # Environment template
+├── pyproject.toml
+├── .env.example
+└── .gitignore
 ```
 
-### Testing
+## Security
 
-Install test dependencies:
+- **No write operations** — entirely read-only
+- **Credentials stay local** — `.env` and session files are gitignored
+- **Session caching** — authenticates once, reuses session via `.mm/mm_session.pickle`
+- **MFA/TOTP support** — auto-generates 2FA codes from your secret key
+- **No auth on HTTP proxy** — relies on network isolation (Tailscale, private network, etc.)
+
+## Troubleshooting
+
+### HTTP 525 / Login Failures
+
+If you see `HTTP Code 525`, you're likely using the abandoned `monarchmoney` package. This project requires `monarchmoneycommunity`:
+```bash
+uv remove monarchmoney
+uv add monarchmoneycommunity
+```
+
+### MFA Required
+
+Monarch Money may require 2FA even if you didn't explicitly enable it. Add `MONARCH_MFA_SECRET` to your `.env`.
+
+### Stale Session
+
+Delete the cached session to force a fresh login:
+```bash
+rm -rf .mm/
+```
+
+## Testing
+
 ```bash
 uv sync --extra test
-```
-
-Run the unit test suite:
-```bash
 uv run pytest tests/ -v
 ```
 
-Run tests with coverage:
-```bash
-uv run pytest tests/ --cov=monarch_mcp_server --cov-report=term
-```
-
-Run manual API test:
-```bash
-python test_api.py
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Disclaimer
 
