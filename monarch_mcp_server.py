@@ -4,9 +4,14 @@ Monarch Money MCP Server (Read-Only) - Updated for latest API
 """
 
 import asyncio
+import functools
 import os
+import sys
 from typing import Any, Dict, Optional, List
 import json
+
+# stdio MCP transport owns stdout; force all diagnostic prints to stderr.
+print = functools.partial(print, file=sys.stderr)
 
 # Import the monarch money library
 try:
@@ -234,6 +239,14 @@ class MonarchMCPServer:
         """Ensure we're logged into Monarch Money."""
         if self.mm is None:
             self.mm = MonarchMoney()
+            # Monarch's Cloudflare WAF rejects the library's default User-Agent
+            # with HTTP 404. Override with a real Chrome UA so we reach the
+            # actual login endpoint (same trick monarchmoney-cli uses).
+            self.mm._headers["User-Agent"] = (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/147.0.0.0 Safari/537.36"
+            )
 
             # Check for session file (load_session is synchronous in community fork)
             session_file = ".mm/mm_session.pickle"

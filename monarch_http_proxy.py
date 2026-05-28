@@ -31,6 +31,14 @@ async def ensure_logged_in() -> MonarchMoney:
         return mm
 
     mm = MonarchMoney()
+    # Monarch's Cloudflare WAF rejects the library's default User-Agent with
+    # HTTP 404. Override with a real Chrome UA (matches monarchmoney-cli's
+    # approach) so we reach the actual login endpoint.
+    mm._headers["User-Agent"] = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/147.0.0.0 Safari/537.36"
+    )
     session_file = ".mm/mm_session.pickle"
 
     # Try cached session first (load_session is synchronous in community fork)
